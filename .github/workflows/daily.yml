@@ -2,8 +2,12 @@ name: Daily Trade Study
 
 on:
   schedule:
-    # 매일 아침 07:30 KST = 전날 22:30 UTC
+    # GitHub cron 누락 대비: 07:30~08:00 KST 여러 번 시도
+    # 성공 후에는 gate에서 스킵 → 카카오 중복 없음
     - cron: "30 22 * * *"
+    - cron: "35 22 * * *"
+    - cron: "45 22 * * *"
+    - cron: "0 23 * * *"
   workflow_dispatch:
 
 permissions:
@@ -12,11 +16,45 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-daily
-  cancel-in-progress: true
+  group: daily-trade-study
+  cancel-in-progress: false
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+      date: ${{ steps.date.outputs.date }}
+    steps:
+      - name: Seoul date
+        id: date
+        run: echo "date=$(TZ=Asia/Seoul date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore sent marker
+        id: sent
+        uses: actions/cache@v4
+        with:
+          path: .daily-sent
+          key: kakao-sent-${{ steps.date.outputs.date }}
+          lookup-only: true
+
+      - name: Decide
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "manual run → always execute"
+          elif [ "${{ steps.sent.outputs.cache-hit }}" = "true" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "already sent ${{ steps.date.outputs.date }} → skip"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "not sent yet → run"
+          fi
+
   build-page:
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,11 +82,12 @@ jobs:
       - name: Upload content.json for notify job
         uses: actions/upload-artifact@v4
         with:
-          name: daily-content
+          name: daily-content-${{ github.run_id }}
           path: content.json
 
   deploy-page:
-    needs: build-page
+    needs: [gate, build-page]
+    if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -61,11 +100,18 @@ jobs:
         uses: actions/deploy-pages@v4
 
   notify-kakao:
-    needs: deploy-page
+    needs: [gate, deploy-page]
+    if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
+      - name: Sent marker cache
+        uses: actions/cache@v4
+        with:
+          path: .daily-sent
+          key: kakao-sent-${{ needs.gate.outputs.date }}
 
       - uses: actions/setup-python@v5
         with:
@@ -78,10 +124,10 @@ jobs:
       - name: Download content.json
         uses: actions/download-artifact@v4
         with:
-          name: daily-content
+          name: daily-content-${{ github.run_id }}
 
       - name: Wait for Pages propagation
-        run: sleep 20
+        run: sleep 25
 
       - name: Send Kakao teaser
         env:
@@ -91,4 +137,7 @@ jobs:
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           CONTENT_BASE_URL: ${{ needs.deploy-page.outputs.page_url }}
           TZ: Asia/Seoul
-        run: python main.py --send-kakao
+        run: |
+          python main.py --send-kakao
+          mkdir -p .daily-sent
+          echo "sent ${{ needs.gate.outputs.date }}" > .daily-sent/ok

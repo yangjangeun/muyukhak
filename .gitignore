@@ -1,6 +1,7 @@
 # docs/ 는 매일 생성되는 학습 페이지 (GitHub Pages)
 docs/
 content.json
+.trigger-logs/
 
 .env
 .venv/
