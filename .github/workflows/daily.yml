@@ -2,13 +2,25 @@ name: Daily Trade Study
 
 on:
   schedule:
-    # GitHub cron 누락 대비: 07:30~08:00 KST 여러 번 시도
-    # 성공 후에는 gate에서 스킵 → 카카오 중복 없음
-    - cron: "30 22 * * *"
-    - cron: "35 22 * * *"
-    - cron: "45 22 * * *"
-    - cron: "0 23 * * *"
+    # GitHub cron은 1~3시간씩 늦게 시작되므로 새벽(KST 02:17~06:17)에 미리 시작하고,
+    # notify-kakao 잡이 07:30 KST까지 기다렸다가 전송한다.
+    # 여러 번 시작돼도 하루 1회만 전송한다 (gate의 캐시 마커).
+    - cron: "17 17 * * *" # 02:17 KST
+    - cron: "17 18 * * *" # 03:17 KST
+    - cron: "17 19 * * *" # 04:17 KST
+    - cron: "17 20 * * *" # 05:17 KST
+    - cron: "17 21 * * *" # 06:17 KST
+    - cron: "40 22 * * *" # 07:40 KST
   workflow_dispatch:
+    inputs:
+      force:
+        description: "오늘 이미 보냈어도 다시 전송"
+        type: boolean
+        default: false
+      send_now:
+        description: "07:30까지 기다리지 않고 즉시 전송"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -41,9 +53,9 @@ jobs:
       - name: Decide
         id: decide
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ inputs.force }}" = "true" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "manual run → always execute"
+            echo "force → execute"
           elif [ "${{ steps.sent.outputs.cache-hit }}" = "true" ]; then
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             echo "already sent ${{ steps.date.outputs.date }} → skip"
@@ -103,7 +115,8 @@ jobs:
     needs: [gate, deploy-page]
     if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # 02:17에 시작하면 07:30까지 최대 약 5시간 대기
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
 
@@ -126,8 +139,18 @@ jobs:
         with:
           name: daily-content-${{ github.run_id }}
 
-      - name: Wait for Pages propagation
-        run: sleep 25
+      - name: Wait until 07:30 KST
+        if: inputs.send_now != true
+        run: |
+          target=$(TZ=Asia/Seoul date -d "07:30" +%s)
+          now=$(date +%s)
+          if [ "$now" -lt "$target" ]; then
+            wait=$((target - now))
+            echo "07:30 KST까지 ${wait}초 대기"
+            sleep "$wait"
+          else
+            echo "이미 07:30 KST 이후 → 즉시 전송"
+          fi
 
       - name: Send Kakao teaser
         env:

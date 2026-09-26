@@ -1,16 +1,8 @@
-# 매일 아침 GitHub Actions 워크플로를 강제 실행합니다.
-# (GitHub 내장 cron이 누락되는 경우를 보완)
-
+# 보조 트리거: PC가 켜져 있으면 07:25에 워크플로를 한 번 더 시작한다.
+# 오늘 이미 보냈으면 워크플로의 gate가 알아서 건너뛴다.
 $ErrorActionPreference = "Stop"
 
-$gh = "C:\Program Files\GitHub CLI\gh.exe"
-if (-not (Test-Path $gh)) {
-    $gh = (Get-Command gh -ErrorAction Stop).Source
-}
-
-$repo = "yangjangeun/muyukhak"
-$workflow = "Daily Trade Study"
-$logDir = Join-Path $PSScriptRoot "..\.trigger-logs"
+$logDir = "d:\muyukhak\.trigger-logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $log = Join-Path $logDir ("trigger-{0:yyyyMMdd}.log" -f (Get-Date))
 
@@ -20,13 +12,13 @@ function Write-Log([string]$msg) {
     Write-Output $line
 }
 
+$gh = "C:\Program Files\GitHub CLI\gh.exe"
+if (-not (Test-Path $gh)) { $gh = (Get-Command gh -ErrorAction Stop).Source }
+
 try {
-    Write-Log "Trigger start: $workflow @ $repo"
-    & $gh workflow run $workflow --repo $repo
-    if ($LASTEXITCODE -ne 0) {
-        throw "gh workflow run failed with exit $LASTEXITCODE"
-    }
-    Write-Log "Trigger OK"
+    & $gh workflow run "Daily Trade Study" --repo yangjangeun/muyukhak
+    if ($LASTEXITCODE -ne 0) { throw "workflow run failed: $LASTEXITCODE" }
+    Write-Log "Dispatched"
     exit 0
 }
 catch {
