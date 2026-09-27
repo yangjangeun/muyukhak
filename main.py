@@ -88,9 +88,13 @@ def generate_daily_content() -> dict[str, Any]:
         raise RuntimeError("GEMINI_API_KEY 환경변수가 필요합니다.")
 
     client = genai.Client(api_key=GEMINI_API_KEY)
+    past_topics = "\n".join(f"- {lesson['topic']}" for lesson in load_lessons()) or "- (없음)"
     prompt = f"""당신은 대한민국 공무원 시험 '관세직 7급 무역학' 전문 강사입니다.
 오늘 날짜: {date_label(seoul_today().isoformat())}
 주제 힌트: {pick_topic_hint()}
+
+이미 다룬 주제 (같은 개념이나 거의 같은 내용은 다시 고르지 마세요):
+{past_topics}
 
 실제 출제 빈도가 높은 핵심 개념 하나를 선정해 JSON으로 작성하세요.
 1. topic: 구체적 주제명
@@ -356,6 +360,15 @@ def build_site(open_browser: bool = False) -> None:
             render_lesson_html(lesson, prev_id, next_id), encoding="utf-8"
         )
     INDEX_HTML.write_text(render_index_html(lessons), encoding="utf-8")
+    # 지운 학습의 카카오 링크는 목록으로 보낸다 (GitHub Pages가 없는 주소에 404.html을 보여줌)
+    (DOCS_DIR / "404.html").write_text(
+        _page(
+            "관세직 7급 무역학",
+            '    <script>location.replace("./");</script>\n'
+            '    <p><a href="./">학습 기록으로 이동</a></p>',
+        ),
+        encoding="utf-8",
+    )
     print(f"사이트 생성: 학습 {len(lessons)}개 → {DOCS_DIR}")
     if open_browser:
         latest = DOCS_DIR / f"{lessons[-1]['id']}.html"
