@@ -84,7 +84,9 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TZ: Asia/Seoul
-        run: python main.py --write-html
+        run: |
+          python main.py --write-html --subject trade
+          python main.py --write-html --subject constitution
 
       # Pages 배포는 매번 사이트 전체를 교체하므로, 지난 학습이 사라지지 않게 lessons/ 를 저장소에 쌓는다
       - name: Commit lesson
@@ -92,7 +94,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lessons
-          git commit -m "Add lesson $(jq -r .id content.json)"
+          git commit -m "Add lessons $(jq -r .id content-trade.json), $(jq -r .id content-constitution.json)"
           git pull --rebase origin main
           git push origin HEAD:main
 
@@ -101,11 +103,11 @@ jobs:
         with:
           path: docs
 
-      - name: Upload content.json for notify job
+      - name: Upload content files for notify job
         uses: actions/upload-artifact@v4
         with:
           name: daily-content-${{ github.run_id }}
-          path: content.json
+          path: content-*.json
 
   deploy-page:
     needs: [gate, build-page]
@@ -144,7 +146,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Download content.json
+      - name: Download content files
         uses: actions/download-artifact@v4
         with:
           name: daily-content-${{ github.run_id }}
@@ -171,6 +173,7 @@ jobs:
           CONTENT_BASE_URL: ${{ needs.deploy-page.outputs.page_url }}
           TZ: Asia/Seoul
         run: |
-          python main.py --send-kakao
+          python main.py --send-kakao --subject trade
+          python main.py --send-kakao --subject constitution
           mkdir -p .daily-sent
           echo "sent ${{ needs.gate.outputs.date }}" > .daily-sent/ok
