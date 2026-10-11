@@ -94,6 +94,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add lessons
+          git diff --cached --quiet && exit 0
           git commit -m "Add lessons $(jq -r .id content-trade.json), $(jq -r .id content-constitution.json)"
           git pull --rebase origin main
           git push origin HEAD:main

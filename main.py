@@ -581,6 +581,18 @@ def main() -> int:
         send_kakao_teaser(subject, load_content(subject))
         return 0
 
+    today = seoul_today().isoformat()
+    todays = [lesson for lesson in load_lessons(subject) if lesson["date"] == today]
+    if args.write_html and todays:
+        # 전송 실패 후 재실행이면 아직 못 보낸 오늘 학습을 다시 쓴다
+        lesson = todays[0]
+        content_json(subject).write_text(
+            json.dumps(lesson, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(f"오늘 학습이 이미 있어 재사용: {lesson['id']}")
+        build_site()
+        return 0
+
     print(f"=== 관세직 7급 {subject.name} 일일 콘텐츠 생성 ===")
     lesson = save_lesson(subject, generate_daily_content(subject))
     print(json.dumps(lesson, ensure_ascii=False, indent=2))
