@@ -4,6 +4,8 @@ content*.json
 .trigger-logs/
 
 .env
+*토큰*
+*토근*
 .venv/
 venv/
 __pycache__/
