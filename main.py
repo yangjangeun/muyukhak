@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 import requests
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 
 load_dotenv()
@@ -145,7 +146,11 @@ def generate_daily_content(subject: Subject) -> dict[str, Any]:
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY 환경변수가 필요합니다.")
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    # JSON schema 응답은 v1beta에서만 지원 (google-genai 최신 기본값 v1은 거부함)
+    client = genai.Client(
+        api_key=GEMINI_API_KEY,
+        http_options=types.HttpOptions(api_version="v1beta"),
+    )
     past_topics = "\n".join(f"- {lesson['topic']}" for lesson in load_lessons(subject)) or "- (없음)"
     prompt = f"""당신은 {subject.role}입니다.
 오늘 날짜: {date_label(seoul_today().isoformat())}
@@ -210,8 +215,12 @@ def next_lesson_id(subject: Subject, iso_date: str) -> str:
     return f"{base}-{n}"
 
 
-def save_lesson(subject: Subject, content: dict[str, Any]) -> dict[str, Any]:
-    iso_date = seoul_today().isoformat()
+def save_lesson(
+    subject: Subject,
+    content: dict[str, Any],
+    iso_date: str | None = None,
+) -> dict[str, Any]:
+    iso_date = iso_date or seoul_today().isoformat()
     lesson = {"id": next_lesson_id(subject, iso_date), "date": iso_date, **content}
     subject.lessons_dir.mkdir(parents=True, exist_ok=True)
     path = subject.lessons_dir / f"{lesson['id']}.json"
@@ -570,8 +579,13 @@ def main() -> int:
         help="저장된 content-<과목>.json으로 카카오 티저만 전송",
     )
     parser.add_argument("--open", action="store_true", help="HTML을 브라우저로 연다")
+    parser.add_argument(
+        "--date",
+        help="학습 날짜 YYYY-MM-DD (기본: 오늘 서울)",
+    )
     args = parser.parse_args()
     subject = SUBJECTS[args.subject]
+    target_date = args.date or seoul_today().isoformat()
 
     if args.build_site:
         build_site(open_browser=args.open)
@@ -581,20 +595,19 @@ def main() -> int:
         send_kakao_teaser(subject, load_content(subject))
         return 0
 
-    today = seoul_today().isoformat()
-    todays = [lesson for lesson in load_lessons(subject) if lesson["date"] == today]
-    if args.write_html and todays:
-        # 전송 실패 후 재실행이면 아직 못 보낸 오늘 학습을 다시 쓴다
-        lesson = todays[0]
+    existing = [lesson for lesson in load_lessons(subject) if lesson["date"] == target_date]
+    if args.write_html and existing:
+        # 전송 실패 후 재실행이면 아직 못 보낸 그날 학습을 다시 쓴다
+        lesson = existing[0]
         content_json(subject).write_text(
             json.dumps(lesson, ensure_ascii=False, indent=2), encoding="utf-8"
         )
-        print(f"오늘 학습이 이미 있어 재사용: {lesson['id']}")
+        print(f"{target_date} 학습이 이미 있어 재사용: {lesson['id']}")
         build_site()
         return 0
 
-    print(f"=== 관세직 7급 {subject.name} 일일 콘텐츠 생성 ===")
-    lesson = save_lesson(subject, generate_daily_content(subject))
+    print(f"=== 관세직 7급 {subject.name} 일일 콘텐츠 생성 ({target_date}) ===")
+    lesson = save_lesson(subject, generate_daily_content(subject), iso_date=target_date)
     print(json.dumps(lesson, ensure_ascii=False, indent=2))
     do_both = not args.write_html
     build_site(open_browser=args.open or do_both)
