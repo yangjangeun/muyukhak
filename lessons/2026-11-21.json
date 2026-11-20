@@ -1,0 +1,9 @@
+{
+  "id": "2026-11-21",
+  "date": "2026-11-21",
+  "topic": "추심결제방식 (Documentary Collection)",
+  "summary": "추심결제방식은 수출상이 발행한 환어음과 선적서류를 은행을 통해 수입상에게 제시하여 대금을 추심하는 무역결제 방식입니다. 이는 신용장 방식에 비해 은행의 대금 지급 보증이 없어 수출상에게 위험이 더 크지만, 수수료가 저렴하다는 장점이 있습니다. 주요 유형으로는 수입상이 대금 지급 후 서류를 받는 D/P(Documents against Payment)와 환어음 인수 후 서류를 받고 만기에 대금을 지급하는 D/A(Documents against Acceptance)가 있습니다. 주로 거래 당사자 간 신뢰가 높거나 소액 거래에 활용됩니다.",
+  "quiz": "추심결제방식 중 D/P(Documents against Payment)는 수입상이 환어음을 인수한 후 서류를 인도받아 만기에 대금을 지급하는 방식이다. (O/X)",
+  "answer": "X",
+  "explanation": "D/P(Documents against Payment) 방식은 수입상이 대금을 즉시 지급해야만 수출상이 보낸 선적서류를 인도받을 수 있는 추심결제 방식입니다. 수입상이 환어음을 인수(Acceptance)함으로써 서류를 인도받고 만기에 대금을 지급하는 방식은 D/A(Documents against Acceptance)입니다. 따라서 제시된 내용은 D/A 방식에 대한 설명이므로 틀렸습니다."
+}
